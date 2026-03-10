@@ -1,31 +1,42 @@
 const pdf = require('pdf-parse');
 const fs = require('fs');
+const path = require('path');
 
 /**
  * Provides AI-powered feedback for a resume based on a job description.
- * This implementation uses a rule-based engine to simulate intelligent analysis,
- * providing actionable strengths, weaknesses, and recommendations.
  */
 exports.analyzeResume = async (resumePath, job) => {
     try {
         let text = "";
-        if (resumePath && fs.existsSync(resumePath)) {
-            const dataBuffer = fs.readFileSync(resumePath);
-            let rawText = "";
+        if (resumePath) {
+            const absolutePath = path.isAbsolute(resumePath) ? resumePath : path.resolve(process.cwd(), resumePath);
+            
+            if (fs.existsSync(absolutePath)) {
+                const dataBuffer = fs.readFileSync(absolutePath);
+                let rawText = "";
 
-            if (typeof pdf === 'function') {
-                const data = await pdf(dataBuffer);
-                rawText = data?.text || "";
-            } else if (pdf && typeof pdf.PDFParse === 'function') {
-                const parser = new pdf.PDFParse({ data: dataBuffer });
-                const result = await parser.getText();
-                rawText = result?.text || "";
-                await parser.destroy();
-            } else if (pdf && pdf.default && typeof pdf.default === 'function') {
-                const data = await pdf.default(dataBuffer);
-                rawText = data?.text || "";
+                if (typeof pdf === 'function') {
+                    const data = await pdf(dataBuffer);
+                    rawText = data?.text || "";
+                } else if (pdf && typeof pdf.PDFParse === 'function') {
+                    const parser = new pdf.PDFParse({ data: dataBuffer });
+                    const result = await parser.getText();
+                    rawText = result?.text || "";
+                    await parser.destroy();
+                } else if (pdf && pdf.default && (typeof pdf.default === 'function' || (pdf.default && typeof pdf.default.PDFParse === 'function'))) {
+                    // ESM/TS interop
+                    if (typeof pdf.default === 'function') {
+                        const data = await pdf.default(dataBuffer);
+                        rawText = data?.text || "";
+                    } else {
+                        const parser = new pdf.default.PDFParse({ data: dataBuffer });
+                        const result = await parser.getText();
+                        rawText = result?.text || "";
+                        await parser.destroy();
+                    }
+                }
+                text = (rawText || "").toLowerCase().replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, "");
             }
-            text = rawText.toLowerCase();
         }
 
         const jobKeywords = (job.keywords || [])
