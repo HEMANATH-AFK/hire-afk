@@ -157,3 +157,88 @@ exports.deleteApplication = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
+exports.filterApplications = async (req, res) => {
+    try {
+        const { skills, mode, jobId } = req.query;
+        
+        if (!skills) {
+            return res.status(400).json({ message: 'Skills parameter is required' });
+        }
+
+        const selectedSkills = skills.split(',').map(s => s.trim().toLowerCase()).filter(s => s !== '');
+        if (selectedSkills.length === 0) {
+            return res.status(400).json({ message: 'Valid skills parameter is required' });
+        }
+
+        let query = {};
+        
+        // If a specific job is selected
+        if (jobId) {
+            query.job = jobId;
+        } else {
+            // Find all jobs for this recruiter
+            const recruiterJobs = await Job.find({ recruiter: req.user.id }).select('_id');
+            const jobIds = recruiterJobs.map(j => j._id);
+            query.job = { $in: jobIds };
+        }
+
+        // Only search pending or active applications maybe? For now, fetch all non-rejected as per previous view, or just fetch all
+        // query.status = { $ne: 'rejected' }; // optional
+
+        const applications = await Application.find(query)
+            .populate('job', 'title company location')
+            .populate('student', 'name email mobile skills resumeUrl description');
+
+        let filteredApplications = [];
+
+        applications.forEach(app => {
+            if (!app.student) return;
+            
+            const candidateSkills = (app.student.skills || [])
+                .filter(s => s && typeof s === 'string' && s.trim() !== '')
+                .map(s => s.toLowerCase().trim());
+            
+            let matchCount = 0;
+            const matchedSkills = [];
+            
+            selectedSkills.forEach(reqSkill => {
+                const isMatch = candidateSkills.some(cs => {
+                    if (!cs) return false;
+                    return cs.includes(reqSkill) || reqSkill.includes(cs);
+                });
+                if (isMatch) {
+                    matchCount++;
+                    matchedSkills.push(reqSkill);
+                }
+            });
+
+            const matchScore = Math.round((matchCount / selectedSkills.length) * 100);
+
+            let includeCandidate = false;
+            
+            if (mode === 'strict' && matchScore === 100) {
+                includeCandidate = true;
+            } else if (mode === 'smart' && matchScore >= 40) {
+                includeCandidate = true;
+            }
+
+            if (includeCandidate) {
+                // Convert mongoose doc to plain object to attach new fields without saving to DB
+                const appObj = app.toObject();
+                appObj.filterMatchScore = matchScore; // New field for this query
+                appObj.filterMatchedSkills = matchedSkills;
+                filteredApplications.push(appObj);
+            }
+        });
+
+        // Sort by highest match score first
+        filteredApplications.sort((a, b) => b.filterMatchScore - a.filterMatchScore);
+
+        res.json(filteredApplications);
+    } catch (err) {
+        console.error(`[ERROR] filterApplications failed: ${err.message}`);
+        res.status(500).json({ message: err.message });
+    }
+};
+

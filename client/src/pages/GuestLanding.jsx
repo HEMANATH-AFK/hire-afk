@@ -200,21 +200,6 @@ const IntroLoader = ({ onComplete }) => {
                     />
                 )}
             </AnimatePresence>
-
-            {/* Cinematic Soundwave Visuals */}
-            <div className="absolute bottom-12 left-0 right-0 flex justify-center items-end gap-2 h-48 px-12">
-                {[...Array(30)].map((_, i) => (
-                    <motion.div
-                        key={i}
-                        animate={{
-                            scaleY: phase >= 2 ? [0.1, Math.random() + 0.5, 0.1] : 0.1,
-                            opacity: phase >= 2 ? 0.4 : 0.1,
-                        }}
-                        transition={{ repeat: Infinity, duration: 0.3, delay: i * 0.02 }}
-                        className="w-1.5 h-full rounded-full bg-indigo-500 origin-bottom will-change-transform"
-                    />
-                ))}
-            </div>
         </motion.div>
     );
 };

@@ -36,12 +36,46 @@ const RecruiterDashboard = () => {
     const [funnelData, setFunnelData] = useState([]);
     const [skillGapData, setSkillGapData] = useState(null);
     const [analyticsLoading, setAnalyticsLoading] = useState(true);
+    const [availableSkills, setAvailableSkills] = useState([]);
+    const [selectedSkills, setSelectedSkills] = useState([]);
+    const [filterMode, setFilterMode] = useState('smart');
+    const [skillInput, setSkillInput] = useState('');
+    const [showSuggestions, setShowSuggestions] = useState(false);
 
     useEffect(() => {
         fetchJobs();
         fetchProfile();
         fetchAnalytics();
+        fetchSkills();
     }, []);
+
+    const fetchSkills = async () => {
+        try {
+            const res = await axios.get('http://localhost:5000/api/skills');
+            setAvailableSkills(res.data);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleFilterApplications = async (overrideSkills = null) => {
+        try {
+            const finalSkills = overrideSkills || selectedSkills;
+            if (finalSkills.length === 0) return;
+
+            const queryParams = new URLSearchParams({
+                skills: finalSkills.join(','),
+                mode: filterMode,
+            });
+            if (viewMode === 'job-specific' && selectedJob) {
+                queryParams.append('jobId', selectedJob._id);
+            }
+            const res = await axios.get(`http://localhost:5000/api/applications/filter?${queryParams.toString()}`);
+            setApplications(res.data);
+        } catch (err) {
+            alert(err.response?.data?.message || 'Filter failed');
+        }
+    };
 
     const fetchAnalytics = async (jobId = null) => {
         setAnalyticsLoading(true);
@@ -398,15 +432,119 @@ const RecruiterDashboard = () => {
                             </div>
                         )}
 
+                        {/* Skill Filter UI */}
+                        <div className="bg-white/5 border border-white/10 p-6 rounded-[2.5rem] mb-8">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-4">
+                                <h3 className="text-xl font-black text-white flex items-center gap-2"><Search size={20} className="text-indigo-400" /> Skill-Based Filtering</h3>
+                                <div className="flex items-center gap-3 bg-black/40 p-1.5 rounded-2xl border border-white/5">
+                                    <button
+                                        onClick={() => setFilterMode('smart')}
+                                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${filterMode === 'smart' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:text-white'}`}
+                                    >
+                                        Smart Match (40%+)
+                                    </button>
+                                    <button
+                                        onClick={() => setFilterMode('strict')}
+                                        className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${filterMode === 'strict' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20' : 'text-slate-500 hover:text-white'}`}
+                                    >
+                                        Strict Match (100%)
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-3 mb-4">
+                                {selectedSkills.map(skill => (
+                                    <span key={skill} className="bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 px-4 py-1.5 rounded-xl text-sm font-black flex items-center gap-2 group">
+                                        {skill}
+                                        <button onClick={() => setSelectedSkills(prev => prev.filter(s => s !== skill))} className="hover:text-white transition-colors"><X size={14} /></button>
+                                    </span>
+                                ))}
+                            </div>
+
+                            <div className="flex flex-col md:flex-row gap-4 relative">
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="text"
+                                        value={skillInput}
+                                        onChange={(e) => {
+                                            setSkillInput(e.target.value);
+                                            setShowSuggestions(true);
+                                        }}
+                                        onFocus={() => setShowSuggestions(true)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && skillInput.trim()) {
+                                                e.preventDefault();
+                                                const trimmedInput = skillInput.trim();
+                                                if (!selectedSkills.map(s => s.toLowerCase()).includes(trimmedInput.toLowerCase())) {
+                                                    setSelectedSkills(prev => [...prev, trimmedInput]);
+                                                }
+                                                setSkillInput('');
+                                                setShowSuggestions(false);
+                                            }
+                                        }}
+                                        placeholder="Type a skill to filter (e.g., React, Node.js)"
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-indigo-500/50 transition-all font-bold text-white placeholder:text-slate-600"
+                                    />
+                                    {showSuggestions && skillInput && (
+                                        <div className="absolute top-full left-0 right-0 mt-2 bg-[#0f172a] border border-white/10 rounded-2xl shadow-2xl z-20 max-h-48 overflow-y-auto overflow-hidden text-sm">
+                                            {availableSkills.filter(s => s.toLowerCase().includes(skillInput.toLowerCase()) && !selectedSkills.includes(s)).map(s => (
+                                                <div
+                                                    key={s}
+                                                    onClick={() => {
+                                                        setSelectedSkills(prev => [...prev, s]);
+                                                        setSkillInput('');
+                                                        setShowSuggestions(false);
+                                                    }}
+                                                    className="px-6 py-3 cursor-pointer hover:bg-white/5 text-slate-300 font-bold hover:text-white transition-colors"
+                                                >
+                                                    {s}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        let currentSkills = [...selectedSkills];
+                                        const trimmedInput = skillInput.trim();
+                                        if (trimmedInput && !currentSkills.map(s => s.toLowerCase()).includes(trimmedInput.toLowerCase())) {
+                                            currentSkills.push(trimmedInput);
+                                            setSelectedSkills(currentSkills);
+                                            setSkillInput('');
+                                            setShowSuggestions(false);
+                                        }
+                                        handleFilterApplications(currentSkills);
+                                    }}
+                                    disabled={selectedSkills.length === 0 && skillInput.trim() === ''}
+                                    className={`px-8 py-4 rounded-2xl font-black transition-all flex items-center justify-center gap-2 ${(selectedSkills.length > 0 || skillInput.trim() !== '') ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-600/20' : 'bg-white/5 text-slate-500 cursor-not-allowed'}`}
+                                >
+                                    <Search size={20} /> Filter Candidates
+                                </button>
+                                {selectedSkills.length > 0 && (
+                                    <button
+                                        onClick={() => {
+                                            setSelectedSkills([]);
+                                            setSkillInput('');
+                                            if (viewMode === 'all') fetchAllApplicants();
+                                            else fetchApplicants(selectedJob._id);
+                                        }}
+                                        className="px-6 py-4 bg-white/5 hover:bg-white/10 text-slate-300 rounded-2xl font-black transition-all flex items-center justify-center gap-2 border border-white/5"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
                         <div className="space-y-8">
                             {applications.length > 0 ? (
                                 applications.map(app => (
-                                    <div key={app._id} className="bg-white/5 p-8 rounded-[3rem] border border-white/5 flex flex-col md:flex-row justify-between gap-8 hover:border-indigo-500/20 transition-all relative group/card">
+                                    <div key={app._id} className={`bg-white/5 p-8 rounded-[3rem] border flex flex-col md:flex-row justify-between gap-8 transition-all relative group/card ${app.filterMatchScore >= 80 ? 'border-indigo-500/50 shadow-[0_0_30px_rgba(99,102,241,0.15)] hover:shadow-[0_0_40px_rgba(99,102,241,0.25)]' : 'border-white/5 hover:border-indigo-500/20'}`}>
                                         <div className="flex-1">
                                             <div className="flex items-center gap-4 mb-4">
                                                 <h4 className="text-3xl font-black tracking-tight">{app.student.name}</h4>
                                                 <div className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-5 py-1.5 rounded-full text-sm font-black tracking-tighter shadow-lg shadow-indigo-500/5">
-                                                    {app.matchScore}% Match
+                                                    {app.filterMatchScore !== undefined ? app.filterMatchScore : app.matchScore}% Match
                                                 </div>
                                                 {viewMode === 'all' && (
                                                     <div className="bg-white/5 border border-white/10 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -416,7 +554,14 @@ const RecruiterDashboard = () => {
                                             </div>
                                             <p className="text-slate-400 font-bold leading-relaxed mb-6 line-clamp-2">{app.student.description}</p>
                                             <div className="flex flex-wrap gap-3 mb-6">
-                                                {app.student.skills && Array.isArray(app.student.skills) && app.student.skills.map(s => <span key={s} className="bg-slate-800/80 px-4 py-1.5 rounded-xl text-xs font-black text-slate-300 border border-white/5">{s}</span>)}
+                                                {app.student.skills && Array.isArray(app.student.skills) && app.student.skills.map(s => {
+                                                    const isMatched = app.filterMatchedSkills && app.filterMatchedSkills.some(ms => ms.toLowerCase() === s.toLowerCase() || s.toLowerCase().includes(ms.toLowerCase()));
+                                                    return (
+                                                        <span key={s} className={`px-4 py-1.5 rounded-xl text-xs font-black border ${isMatched ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300 shadow-[0_0_10px_rgba(99,102,241,0.2)]' : 'bg-slate-800/80 border-white/5 text-slate-300'}`}>
+                                                            {s}
+                                                        </span>
+                                                    );
+                                                })}
                                             </div>
                                             <div className="flex items-center gap-6">
                                                 <a href={`http://localhost:5000/${app.student.resumeUrl}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-indigo-400 font-black hover:text-indigo-300 transition-colors group">

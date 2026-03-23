@@ -1,6 +1,7 @@
 const Job = require('../models/Job');
 const User = require('../models/User');
 const { applyAllStudentsToJob } = require('./automationController');
+const { addSkills } = require('./skillController');
 
 exports.createJob = async (req, res) => {
     const { title, company, description, keywords, location, salary, vacancies, jobType, deadline } = req.body;
@@ -27,6 +28,11 @@ exports.createJob = async (req, res) => {
 
         // Trigger Reverse Auto-Apply (intentional non-await to run in background)
         applyAllStudentsToJob(job);
+
+        // Add extracted skills to dictionary
+        if (job.keywords && job.keywords.length > 0) {
+            addSkills(job.keywords);
+        }
 
         res.status(201).json(job);
     } catch (err) {
@@ -123,6 +129,11 @@ exports.updateJob = async (req, res) => {
 
         // RE-trigger matching for updated job
         applyAllStudentsToJob(updatedJob);
+
+        // Add extracted skills to dictionary
+        if (updatedJob.keywords && updatedJob.keywords.length > 0) {
+            addSkills(updatedJob.keywords);
+        }
 
         res.json(updatedJob);
     } catch (err) {

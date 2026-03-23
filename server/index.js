@@ -26,6 +26,7 @@ app.use('/uploads', express.static('uploads'));
 app.get('/', (req, res) => res.json({ message: 'Hire AFK API Running', version: '1.0.2-real-time-ready' }));
 
 // Routes
+app.use('/api/skills', require('./routes/skillRoutes'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/jobs', require('./routes/jobs'));

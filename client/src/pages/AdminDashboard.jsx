@@ -6,6 +6,7 @@ import {
     UserCheck, UserMinus, Globe, Mail
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('overview');
@@ -99,6 +100,25 @@ const AdminDashboard = () => {
         { id: 'jobs', label: 'Jobs', icon: Briefcase }
     ];
 
+    // Prepare Chart Data
+    const userDistData = [
+        { name: 'Students', value: stats?.totalStudents || 0 },
+        { name: 'Recruiters', value: stats?.totalRecruiters || 0 }
+    ];
+
+    const recruiterApprovalData = [
+        { name: 'Approved', value: recruiters.filter(r => r.isApproved).length },
+        { name: 'Pending', value: recruiters.filter(r => !r.isApproved).length }
+    ];
+
+    const jobStatusData = [
+        { name: 'Active', value: jobs.filter(j => j.isActive).length },
+        { name: 'Inactive', value: jobs.filter(j => !j.isActive).length }
+    ];
+
+    const COLORS = ['#6366f1', '#06b6d4']; // Indigo-500, Cyan-500
+    const STATUS_COLORS = ['#22c55e', '#f59e0b']; // Green-500, Amber-500
+
     return (
         <div className="max-w-7xl mx-auto px-6 py-12">
             {/* Header */}
@@ -159,8 +179,79 @@ const AdminDashboard = () => {
                             <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
                                 <Globe className="text-indigo-400" size={24} /> Platform Status
                             </h3>
-                            <div className="h-64 flex items-center justify-center text-slate-500 italic">
-                                Visual analytics coming soon...
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                {/* User Distribution Chart */}
+                                <div className="bg-slate-800/20 p-6 rounded-2xl border border-white/5">
+                                    <h4 className="text-sm font-bold text-slate-400 mb-4 text-center">User Distribution</h4>
+                                    <div className="h-48">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={userDistData}
+                                                    innerRadius={40}
+                                                    outerRadius={60}
+                                                    paddingAngle={5}
+                                                    dataKey="value"
+                                                >
+                                                    {userDistData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} itemStyle={{ color: '#fff' }} />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <div className="flex justify-center gap-4 text-xs font-bold mt-2">
+                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-indigo-500"></div>Students</div>
+                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-cyan-500"></div>Recruiters</div>
+                                    </div>
+                                </div>
+
+                                {/* Recruiter Approvals Chart */}
+                                <div className="bg-slate-800/20 p-6 rounded-2xl border border-white/5">
+                                    <h4 className="text-sm font-bold text-slate-400 mb-4 text-center">Recruiter Approvals</h4>
+                                    <div className="h-48">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={recruiterApprovalData}
+                                                    innerRadius={50}
+                                                    outerRadius={60}
+                                                    paddingAngle={5}
+                                                    dataKey="value"
+                                                >
+                                                    {recruiterApprovalData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={STATUS_COLORS[index % STATUS_COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} itemStyle={{ color: '#fff' }} />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    <div className="flex justify-center gap-4 text-xs font-bold mt-2">
+                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-green-500"></div>Approved</div>
+                                        <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-500"></div>Pending</div>
+                                    </div>
+                                </div>
+
+                                {/* Job Market Status Chart */}
+                                <div className="bg-slate-800/20 p-6 rounded-2xl border border-white/5">
+                                    <h4 className="text-sm font-bold text-slate-400 mb-4 text-center">Job Market Status</h4>
+                                    <div className="h-48">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={jobStatusData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
+                                                <YAxis stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
+                                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} cursor={{ fill: 'rgba(255,255,255,0.02)' }} itemStyle={{ color: '#fff' }} />
+                                                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                                                    {jobStatusData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={index === 0 ? '#6366f1' : '#64748b'} />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </motion.div>
