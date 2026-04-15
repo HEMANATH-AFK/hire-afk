@@ -18,6 +18,9 @@ exports.getRecruiterStats = async (req, res) => {
             totalJobs: jobs.length,
             totalApplications: totalApps,
             totalHires,
+            totalInterviews: apps.filter(a => a.status === 'interview').length,
+            totalRejected: apps.filter(a => a.status === 'rejected').length,
+            totalPending: apps.filter(a => a.status === 'pending').length,
             avgMatchScore,
             activePostings: jobs.filter(j => j.isActive).length
         });

@@ -443,7 +443,7 @@ const StudentLanding = ({ user }) => {
                         className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-white/5 border border-white/10 mb-12 backdrop-blur-md"
                     >
                         <Zap size={16} className="text-indigo-400 fill-indigo-400" />
-                        <span className="text-sm font-black tracking-[0.3em] uppercase text-slate-400">Welcome Back, {user.name.split(' ')[0]}</span>
+                        <span className="text-sm font-black tracking-[0.3em] uppercase text-slate-400">Welcome Back, {user?.name?.split(' ')[0] || 'Candidate'}</span>
                     </motion.div>
 
                     <motion.h1

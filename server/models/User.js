@@ -15,10 +15,29 @@ const userSchema = new mongoose.Schema({
     skills: [String],
     resumeUrl: { type: String },
     isProfileComplete: { type: Boolean, default: false },
+    experience: [{
+        title: String,
+        company: String,
+        duration: String,
+        description: String
+    }],
+    projects: [{
+        title: String,
+        technologies: [String],
+        description: String,
+        link: String
+    }],
 
     // Recruiter Specific
     company: { type: String },
-    companyLogo: { type: String }
+    companyLogo: { type: String },
+
+    // Gamification
+    xp: { type: Number, default: 0 },
+    level: { type: Number, default: 1 },
+    streakCount: { type: Number, default: 0 },
+    lastLoginDate: { type: Date },
+    completedChallenges: [{ type: String }]
 }, { timestamps: true });
 
 userSchema.pre('save', async function () {

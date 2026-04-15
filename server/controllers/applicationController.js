@@ -1,6 +1,7 @@
 const Application = require('../models/Application');
 const Job = require('../models/Job');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const socketService = require('../services/socketService');
 
 exports.getStudentApplications = async (req, res) => {
@@ -45,14 +46,37 @@ exports.updateApplicationStatus = async (req, res) => {
         application.status = status;
         await application.save();
 
-        // Emit real-time notification to the student
-        socketService.emitToUser(application.student.toString(), 'status_updated', {
-            applicationId: application._id,
-            jobTitle: application.job.title,
-            company: application.job.company,
-            status: status,
-            message: `Your application for ${application.job.title} at ${application.job.company} has been ${status}.`
+        const messageText = `Your application for ${application.job.title} at ${application.job.company} has been ${status}.`;
+
+        const notification = await Notification.create({
+            recipient: application.student,
+            sender: req.user.id,
+            type: 'status_update',
+            message: messageText,
+            relatedId: application._id
         });
+
+        // Emit real-time notification to the student
+        socketService.emitToUser(application.student.toString(), 'new_notification', notification);
+
+        res.json(application);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+exports.updateApplicationNotes = async (req, res) => {
+    const { notes } = req.body;
+    try {
+        const application = await Application.findById(req.params.id).populate('job');
+        if (!application) return res.status(404).json({ message: 'Application not found' });
+
+        if (application.job.recruiter.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(401).json({ message: 'Not authorized' });
+        }
+
+        application.recruiterNotes = notes;
+        await application.save();
 
         res.json(application);
     } catch (err) {
@@ -72,17 +96,13 @@ exports.manualApply = async (req, res) => {
 
         const aiController = require('./aiController');
         const automationController = require('./automationController');
+        const matchEngine = require('../utils/matchEngine');
 
         // Extract text and calculate initial match score
         const student = await User.findById(req.user.id);
         const resumeText = await automationController.extractKeywords(student.resumeUrl);
-        const jobKeywords = (job.keywords || []).flatMap(k => k.split(',')).map(k => k.trim().toLowerCase());
-
-        let matchCount = 0;
-        jobKeywords.forEach(skill => {
-            if (resumeText.includes(skill)) matchCount++;
-        });
-        const score = jobKeywords.length > 0 ? (matchCount / jobKeywords.length) * 100 : 0;
+        
+        const score = matchEngine.calculateSmartScore(student, job, resumeText);
 
         const analysis = await aiController.analyzeResume(student.resumeUrl, job);
 
@@ -103,6 +123,26 @@ exports.manualApply = async (req, res) => {
                 rawFeedback: analysis.rawFeedback
             }
         });
+
+        // Gamification: Award XP
+        const { awardXP } = require('./gamificationController');
+        await awardXP(req.user.id, 20, 'first_job_applied');
+
+        // Check for 5 applications milestone
+        const appCount = await Application.countDocuments({ student: req.user.id });
+        if (appCount >= 5) {
+            await awardXP(req.user.id, 100, 'five_applications');
+        }
+
+        const recruiterNotification = await Notification.create({
+            recipient: job.recruiter,
+            sender: req.user.id,
+            type: 'new_application',
+            message: `New AFK application received from ${student.name} for ${job.title} (${Math.round(score)}% match).`,
+            relatedId: application._id
+        });
+
+        socketService.emitToUser(job.recruiter.toString(), 'new_notification', recruiterNotification);
 
         res.status(201).json(application);
     } catch (err) {

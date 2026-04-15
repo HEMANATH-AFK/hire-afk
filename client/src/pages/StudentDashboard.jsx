@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import GlassSelect from '../components/GlassSelect';
-import { Camera, FileText, CheckCircle, ChevronRight, Briefcase, Trash2, Rocket, Search, X, AlertTriangle, Play, Info, Zap, Filter } from 'lucide-react';
+import { Camera, FileText, CheckCircle, CheckCircle2, ChevronRight, Briefcase, Trash2, Rocket, Search, X, AlertTriangle, Play, Info, Zap, Filter, Sparkles, Flame, Trophy, Target } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
 
 const StudentDashboard = () => {
     const { user } = useAuth();
@@ -32,10 +35,47 @@ const StudentDashboard = () => {
     const [submittingReport, setSubmittingReport] = useState(false);
     const [selectedAppDetails, setSelectedAppDetails] = useState(null);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
+    
+    // AI Matcher State
+    const [aiMatches, setAiMatches] = useState(null);
+    const [showAiMatches, setShowAiMatches] = useState(false);
+    const [fetchingAi, setFetchingAi] = useState(false);
+
+    const [gamification, setGamification] = useState(null);
+
+    const fetchAiMatches = async () => {
+        setFetchingAi(true);
+        setShowAiMatches(true);
+        try {
+            const res = await axios.get('http://localhost:5000/api/jobs/ai-match', {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('token')}` // Safety net
+                }
+            });
+            setAiMatches(res.data);
+        } catch (err) {
+            toast.error('Failed to fetch AI matches');
+            setShowAiMatches(false);
+        } finally {
+            setFetchingAi(false);
+        }
+    };
+
+    const fetchGamification = async () => {
+        try {
+            const res = await axios.get('http://localhost:5000/api/gamification/status', {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            setGamification(res.data);
+        } catch (err) {
+            console.error("Error fetching gamification status:", err);
+        }
+    };
 
     useEffect(() => {
         fetchProfile();
         fetchApplications();
+        if (user?.role === 'student') fetchGamification();
     }, []);
 
     const fetchProfile = async () => {
@@ -67,13 +107,40 @@ const StudentDashboard = () => {
         }
     };
 
+    const calculateProfileStrength = () => {
+        if (!profile) return 0;
+        let score = 0;
+        if (profile.name) score += 10;
+        if (profile.email) score += 10;
+        if (profile.mobile) score += 10;
+        if (profile.description?.length > 50) score += 20;
+        if (profile.skills?.length >= 3) score += 20;
+        if (profile.profilePic) score += 15;
+        if (profile.resumeUrl) score += 15;
+        return score;
+    };
+
+    const getSkillGap = () => {
+        if (!aiMatches) return [];
+        const missing = aiMatches.flatMap(m => m.analysis?.missingSkills || []);
+        const counts = {};
+        missing.forEach(s => {
+            const skill = s.toLowerCase().trim();
+            counts[skill] = (counts[skill] || 0) + 1;
+        });
+        return Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(e => e[0]);
+    };
+
     const handleWithdraw = async (appId) => {
         if (!window.confirm('Are you sure you want to withdraw this application?')) return;
         try {
             await axios.delete(`http://localhost:5000/api/applications/${appId}`);
             fetchApplications();
         } catch (err) {
-            alert(err.response?.data?.message || 'Withdrawal failed');
+            toast.error(err.response?.data?.message || 'Withdrawal failed');
         }
     };
 
@@ -118,7 +185,7 @@ const StudentDashboard = () => {
                 setStep(step + 1);
             }
         } catch (err) {
-            alert('Update failed');
+            toast.error('Update failed');
         } finally {
             setIsUpdating(false);
         }
@@ -135,18 +202,18 @@ const StudentDashboard = () => {
                 jobId: selectedAppForReport.job._id,
                 reason: reportReason
             });
-            alert('Report submitted successfully. Our team will review it.');
+            toast.success('Report submitted successfully. Our team will review it.');
             setShowReportModal(false);
             setReportReason('');
             setSelectedAppForReport(null);
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to submit report.');
+            toast.error(err.response?.data?.message || 'Failed to submit report.');
         } finally {
             setSubmittingReport(false);
         }
     };
 
-    if (loading) return <div className="p-10 text-center">Loading Profile...</div>;
+    if (loading) return <div className="max-w-7xl mx-auto px-6 py-12 space-y-8"><SkeletonLoader type="card" count={2} /></div>;
 
     return (
         <div className="max-w-7xl mx-auto px-6 py-12">
@@ -352,12 +419,114 @@ const StudentDashboard = () => {
                                                     </a>
                                                 )}
                                             </div>
+
+                                            {/* Gamification HUD */}
+                                            {gamification && (
+                                                <div className="flex flex-wrap items-center gap-4 mt-8">
+                                                    <div className="flex items-center gap-3 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 px-4 py-2 rounded-2xl border border-indigo-500/20">
+                                                        <div className="w-10 h-10 rounded-xl bg-indigo-500 text-white flex items-center justify-center font-black shadow-lg shadow-indigo-500/30">
+                                                            {gamification.level}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">Current Level</p>
+                                                            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                                                {gamification.xp} <span className="text-slate-400">XP</span>
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3 bg-orange-500/10 px-4 py-2 rounded-2xl border border-orange-500/20 group hover:bg-orange-500/20 transition-all cursor-default relative">
+                                                        <Flame className={`text-orange-500 ${gamification.streakCount > 0 ? 'animate-pulse' : ''}`} size={24} />
+                                                        <div>
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-orange-500">Daily Streak</p>
+                                                            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{gamification.streakCount} Days</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex-1 min-w-[200px] bg-slate-50 dark:bg-white/5 p-3 rounded-2xl border border-slate-200 dark:border-white/5">
+                                                        <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                                                            <span>{gamification.level >= 10 ? 'MAX LEVEL REACHED' : 'Next Level'}</span>
+                                                            {gamification.level < 10 && <span>{gamification.xpToNextLevel} XP needed</span>}
+                                                        </div>
+                                                        <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                            <div 
+                                                                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 shadow-[0_0_10px_rgba(99,102,241,0.5)] transition-all duration-1000 ease-out" 
+                                                                style={{ width: gamification.level >= 10 ? '100%' : `${Math.min(100, (gamification.xp % 100))}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="glass px-8 py-6 rounded-[2rem] text-center border-slate-200 dark:border-white/5 md:w-64">
                                         <p className="text-[10px] uppercase font-black tracking-widest text-indigo-600 dark:text-indigo-400 mb-1">Status</p>
                                         <p className="text-2xl font-black text-slate-900 dark:text-white">Automated</p>
                                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-bold leading-relaxed">Agent is actively applying to matches.</p>
+                                        <button onClick={fetchAiMatches} className="mt-4 w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-600/20">
+                                            <Sparkles size={14} /> Top 5 Matches
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Profile Strength & Skill Gap Analysis */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                                    <div className="glass p-8 rounded-[2.5rem] bg-gradient-to-br from-indigo-500/5 to-transparent border-white/5 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-6 opacity-10">
+                                            <Sparkles size={80} className="text-indigo-400" />
+                                        </div>
+                                        <h3 className="text-sm font-black text-slate-500 uppercase tracking-[0.3em] mb-4">Profile Strength</h3>
+                                        <div className="flex items-end gap-4 mb-4">
+                                            <span className="text-6xl font-black text-slate-900 dark:text-white transition-colors">{calculateProfileStrength()}%</span>
+                                            <span className="text-slate-400 font-bold mb-2 uppercase tracking-widest text-[10px]">Optimized</span>
+                                        </div>
+                                        <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mb-6 transition-colors">
+                                            <motion.div 
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${calculateProfileStrength()}%` }}
+                                                transition={{ duration: 1.5, ease: "easeOut" }}
+                                                className="h-full bg-gradient-to-r from-indigo-600 via-purple-500 to-cyan-400 shadow-[0_0_15px_rgba(99,102,241,0.5)]"
+                                            />
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {calculateProfileStrength() < 100 && (
+                                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 transition-colors">
+                                                    Tip: {!profile?.resumeUrl ? "Upload your resume" : !profile?.profilePic ? "Add a profile photo" : "Expand your description"} to reach 100%
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="glass p-8 rounded-[2.5rem] bg-gradient-to-br from-orange-500/5 to-transparent border-white/5 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-6 opacity-10 text-orange-400">
+                                            <Target size={80} />
+                                        </div>
+                                        <h3 className="text-sm font-black text-slate-500 uppercase tracking-[0.3em] mb-4">Skill Gap Analysis</h3>
+                                        {getSkillGap().length > 0 ? (
+                                            <div className="space-y-4">
+                                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest leading-relaxed transition-colors">Top missing skills in your target jobs:</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {getSkillGap().map(skill => (
+                                                        <a 
+                                                            key={skill}
+                                                            href={`https://www.youtube.com/results?search_query=learn+${skill}`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="group flex items-center gap-2 bg-orange-500/10 hover:bg-orange-500/20 px-4 py-2 rounded-xl text-orange-600 dark:text-orange-400 transition-all border border-orange-500/20"
+                                                        >
+                                                            <span className="text-xs font-black uppercase tracking-widest">{skill}</span>
+                                                            <Play size={10} className="group-hover:translate-x-1 transition-transform" />
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic mt-4">Click to find learning resources on YouTube</p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center h-full py-4">
+                                                <CheckCircle size={32} className="text-green-500/50 mb-3" />
+                                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">No major skill gaps found!</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -491,14 +660,12 @@ const StudentDashboard = () => {
                                                     </AnimatePresence>
                                                 </div>
                                             ) : (
-                                                <div className="glass p-16 rounded-[3rem] text-center border-dashed border-2 border-slate-200 dark:border-slate-700/50">
-                                                    <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                                                        <Search className="text-slate-400 dark:text-slate-600" size={40} />
-                                                    </div>
-                                                    <p className="text-xl text-slate-500 dark:text-slate-400 font-bold max-w-sm mx-auto leading-relaxed text-slate-900 dark:text-white">
-                                                        {searchTerm || statusFilter !== 'all' ? 'No applications match your search criteria.' : 'No applications yet.'}
-                                                    </p>
-                                                </div>
+                                                <EmptyState 
+                                                    title={searchTerm || statusFilter !== 'all' ? "No Matches Found" : "No Applications Yet"}
+                                                    message={searchTerm || statusFilter !== 'all' ? "We couldn't find any applications matching your filters. Try adjusting your search." : "You haven't submitted any applications. Head over to the Jobs page to start!"}
+                                                    actionLabel="Browse Jobs"
+                                                    onAction={() => navigate('/jobs')}
+                                                />
                                             )}
                                         </div>
                                     </div>
@@ -514,6 +681,34 @@ const StudentDashboard = () => {
                                                 ))}
                                             </div>
                                         </div>
+
+                                        {gamification?.challenges && (
+                                            <div className="space-y-6">
+                                                <h2 className="text-2xl font-black tracking-tight flex items-center gap-3 text-slate-900 dark:text-white">
+                                                    <Trophy className="text-amber-500" /> Achievements
+                                                </h2>
+                                                <div className="glass p-8 rounded-[2.5rem] border-slate-200 dark:border-white/5 space-y-4">
+                                                    {gamification.challenges.map((challenge) => (
+                                                        <div key={challenge.id} className={`p-5 rounded-3xl border transition-all ${challenge.completed ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/5'}`}>
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <h4 className={`font-black text-sm ${challenge.completed ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'}`}>
+                                                                    {challenge.title}
+                                                                </h4>
+                                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${challenge.completed ? 'bg-emerald-500 text-white' : 'bg-indigo-500/10 text-indigo-500'}`}>
+                                                                    +{challenge.xp} XP
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-xs text-slate-500 dark:text-slate-400 font-bold leading-tight">{challenge.description}</p>
+                                                            {challenge.completed && (
+                                                                <div className="mt-3 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-500">
+                                                                    <CheckCircle2 size={12} /> Completed
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className="space-y-6">
                                             <h2 className="text-2xl font-black tracking-tight flex items-center gap-3 text-red-600 dark:text-red-500">Report Recruiter</h2>
@@ -759,6 +954,86 @@ const StudentDashboard = () => {
                             >
                                 Got it, thanks!
                             </button>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Top 5 AI Matches Modal */}
+            <AnimatePresence>
+                {showAiMatches && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowAiMatches(false)}
+                            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="glass w-full max-w-4xl max-h-[90vh] overflow-y-auto p-8 md:p-10 rounded-[3rem] relative border-indigo-500/20 shadow-2xl"
+                        >
+                            <div className="flex justify-between items-start mb-8 border-b border-indigo-500/10 pb-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 flex items-center justify-center">
+                                        <Sparkles size={28} />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">AI Job Matcher <span className="text-indigo-500 italic text-xl">Top 5</span></h2>
+                                        <p className="text-sm text-slate-500 font-bold">Curated mathematically and personalized by AI.</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowAiMatches(false)} className="p-2 text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
+                                    <X size={28} />
+                                </button>
+                            </div>
+
+                            {fetchingAi ? (
+                                <div className="py-20 flex flex-col items-center justify-center space-y-4">
+                                    <div className="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+                                    <p className="text-indigo-500 font-bold animate-pulse">Consulting the Smart Matching Engine...</p>
+                                </div>
+                            ) : aiMatches && aiMatches.length > 0 ? (
+                                <div className="space-y-6">
+                                    {aiMatches.map((job, idx) => (
+                                        <div key={job._id} className="p-6 rounded-3xl bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 hover:border-indigo-500/30 transition-all group">
+                                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-xs font-black uppercase tracking-widest bg-indigo-500 text-white px-2 py-0.5 rounded-md">#{idx + 1}</span>
+                                                        <h3 className="text-xl font-black text-slate-900 dark:text-white">{job.title}</h3>
+                                                    </div>
+                                                    <p className="text-slate-500 dark:text-slate-400 font-bold">{job.company}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 dark:text-slate-500 mb-1">Match Grade</p>
+                                                    <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{job.matchScore || 0}%</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="bg-indigo-500/5 p-4 rounded-2xl border border-indigo-500/10">
+                                                <p className="text-xs uppercase font-black tracking-widest text-indigo-500 mb-2">AI Pitch</p>
+                                                <p className="text-sm font-bold text-slate-700 dark:text-slate-300 italic">"{job.aiPitch}"</p>
+                                            </div>
+                                            
+                                            <div className="mt-4 flex flex-wrap gap-2">
+                                                {job.keywords?.slice(0, 5).map((k, i) => (
+                                                    <span key={i} className="text-[10px] font-black uppercase px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">{k}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <EmptyState
+                                    icon={Search}
+                                    title="No Matches Available"
+                                    message="We couldn't mathematically match you with active jobs. Try updating your profile or skills!"
+                                />
+                            )}
                         </motion.div>
                     </div>
                 )}

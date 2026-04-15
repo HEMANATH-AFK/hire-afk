@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { LogOut, User, Briefcase, Shield, Menu, X, Rocket, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
-import NotificationCenter from './NotificationCenter';
+import NotificationBell from './NotificationBell';
 
 const Navbar = () => {
     const { user, logout } = useAuth();
@@ -44,7 +44,7 @@ const Navbar = () => {
                         </Link>
                     ))}
 
-                    {user && <NotificationCenter />}
+                    {user && <NotificationBell />}
 
                     <button
                         onClick={toggleTheme}

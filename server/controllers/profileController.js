@@ -2,6 +2,7 @@
 const User = require('../models/User');
 const fs = require('fs');
 const { autoApply, autoExtractSkills } = require('./automationController');
+const { awardXP } = require('./gamificationController');
 
 exports.getProfile = async (req, res) => {
     try {
@@ -78,6 +79,7 @@ exports.updateProfile = async (req, res) => {
         if (user.isProfileComplete) {
             // Trigger Auto-Apply (intentional non-await to run in background)
             autoApply(user);
+            awardXP(user._id, 50, 'profile_complete').catch(console.error);
         }
 
         res.json(user);

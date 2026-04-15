@@ -7,6 +7,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import toast from 'react-hot-toast';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
 
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('overview');
@@ -51,7 +54,7 @@ const AdminDashboard = () => {
             await axios.put(`http://localhost:5000/api/admin/reports/${reportId}/resolve`);
             fetchAllData();
         } catch (err) {
-            alert('Action failed');
+            toast.error('Action failed');
         }
     };
 
@@ -60,7 +63,7 @@ const AdminDashboard = () => {
             await axios.put(`http://localhost:5000/api/admin/recruiters/${recruiterId}/action`, { action });
             fetchAllData();
         } catch (err) {
-            alert('Action failed');
+            toast.error('Action failed');
         }
     };
 
@@ -70,7 +73,7 @@ const AdminDashboard = () => {
             await axios.delete(`http://localhost:5000/api/admin/users/${userId}`);
             fetchAllData();
         } catch (err) {
-            alert('Delete failed');
+            toast.error('Delete failed');
         }
     };
 
@@ -80,16 +83,12 @@ const AdminDashboard = () => {
             await axios.delete(`http://localhost:5000/api/jobs/${jobId}`);
             fetchAllData();
         } catch (err) {
-            alert('Delete failed');
+            toast.error('Delete failed');
         }
     };
 
     if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-            </div>
-        );
+        return <div className="max-w-7xl mx-auto px-6 py-12 space-y-8"><SkeletonLoader type="card" count={3} /></div>;
     }
 
     const tabs = [
@@ -254,6 +253,37 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Today's Activity Section */}
+                        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="glass p-6 rounded-3xl border-white/5 bg-gradient-to-br from-indigo-500/5 to-transparent flex items-center gap-6 group hover:border-indigo-500/20 transition-all">
+                                <div className="p-4 bg-indigo-500/10 rounded-2xl text-indigo-400 group-hover:scale-110 transition-transform">
+                                    <Users size={24} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">New Users Today</p>
+                                    <p className="text-2xl font-black text-white">+{stats.usersToday || 0}</p>
+                                </div>
+                            </div>
+                            <div className="glass p-6 rounded-3xl border-white/5 bg-gradient-to-br from-green-500/5 to-transparent flex items-center gap-6 group hover:border-green-500/20 transition-all">
+                                <div className="p-4 bg-green-500/10 rounded-2xl text-green-400 group-hover:scale-110 transition-transform">
+                                    <Briefcase size={24} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Jobs Posted Today</p>
+                                    <p className="text-2xl font-black text-white">+{stats.jobsToday || 0}</p>
+                                </div>
+                            </div>
+                            <div className="glass p-6 rounded-3xl border-white/5 bg-gradient-to-br from-orange-500/5 to-transparent flex items-center gap-6 group hover:border-orange-500/20 transition-all">
+                                <div className="p-4 bg-orange-500/10 rounded-2xl text-orange-400 group-hover:scale-110 transition-transform">
+                                    <BarChart3 size={24} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Applications Today</p>
+                                    <p className="text-2xl font-black text-white">+{stats.appsToday || 0}</p>
+                                </div>
+                            </div>
+                        </div>
                     </motion.div>
                 )}
 
@@ -312,10 +342,11 @@ const AdminDashboard = () => {
                                 </div>
                             ))
                         ) : (
-                            <div className="glass p-20 rounded-3xl text-center text-slate-500 flex flex-col items-center gap-4">
-                                <ShieldCheck size={48} className="text-green-500/20" />
-                                <p className="text-xl">Platform is safe. No pending reports.</p>
-                            </div>
+                            <EmptyState 
+                                icon={ShieldCheck} 
+                                title="Platform is safe." 
+                                message="No pending reports to address." 
+                            />
                         )}
                     </motion.div>
                 )}

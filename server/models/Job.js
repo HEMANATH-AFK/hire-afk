@@ -7,6 +7,7 @@ const jobSchema = new mongoose.Schema({
     companyLogo: { type: String },
     description: { type: String, required: true },
     keywords: [String], // Skills required
+    prioritySkills: [String], // Skills that carry 2x weight
     location: { type: String },
     salary: { type: String },
     vacancies: { type: Number, default: 1 },

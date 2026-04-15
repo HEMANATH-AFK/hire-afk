@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { updateStreak } = require('./gamificationController');
 
 const generateToken = (id, role) => {
     return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '30d' });
@@ -16,6 +17,10 @@ exports.register = async (req, res) => {
             token: generateToken(user._id, user.role),
             user: { id: user._id, name: user.name, role: user.role }
         });
+
+        if (role === 'student' || !role) {
+            updateStreak(user._id).catch(console.error);
+        }
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -33,6 +38,10 @@ exports.login = async (req, res) => {
             token: generateToken(user._id, user.role),
             user: { id: user._id, name: user.name, role: user.role }
         });
+
+        if (user.role === 'student') {
+            updateStreak(user._id).catch(console.error);
+        }
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

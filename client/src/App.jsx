@@ -11,6 +11,9 @@ import JobsPage from './pages/JobsPage';
 import InterviewPrep from './pages/InterviewPrep';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SocketProvider } from './context/SocketContext';
+import ChatWidget from './components/ChatWidget';
+import { Toaster } from 'react-hot-toast';
 
 const PrivateRoute = ({ children, role }) => {
   const { user, loading } = useAuth();
@@ -24,28 +27,32 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Router>
-          <div className="min-h-screen flex flex-col bg-white dark:bg-[#0f172a] text-slate-900 dark:text-[#f8fafc] transition-colors duration-300">
-            <Navbar />
-            <main className="flex-grow">
-              <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
+        <SocketProvider>
+          <Router>
+              <div className="min-h-screen flex flex-col bg-white dark:bg-[#0f172a] text-slate-900 dark:text-[#f8fafc] transition-colors duration-300">
+              <Navbar />
+              <ChatWidget />
+              <Toaster position="bottom-right" toastOptions={{ style: { background: '#1e293b', color: '#fff', border: '1px solid rgba(255,255,255,0.05)' } }} />
+              <main className="flex-grow">
+                <Routes>
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
 
-                {/* Private Routes */}
-                <Route path="/dashboard" element={<PrivateRoute role="student"><StudentDashboard /></PrivateRoute>} />
-                <Route path="/student/*" element={<PrivateRoute role="student"><StudentDashboard /></PrivateRoute>} />
-                <Route path="/recruiter/*" element={<PrivateRoute role="recruiter"><RecruiterDashboard /></PrivateRoute>} />
-                <Route path="/admin/*" element={<PrivateRoute role="admin"><AdminDashboard /></PrivateRoute>} />
-                <Route path="/jobs" element={<JobsPage />} />
-                <Route path="/interview-prep/:jobId" element={<PrivateRoute role="student"><InterviewPrep /></PrivateRoute>} />
+                  {/* Private Routes */}
+                  <Route path="/dashboard" element={<PrivateRoute role="student"><StudentDashboard /></PrivateRoute>} />
+                  <Route path="/student/*" element={<PrivateRoute role="student"><StudentDashboard /></PrivateRoute>} />
+                  <Route path="/recruiter/*" element={<PrivateRoute role="recruiter"><RecruiterDashboard /></PrivateRoute>} />
+                  <Route path="/admin/*" element={<PrivateRoute role="admin"><AdminDashboard /></PrivateRoute>} />
+                  <Route path="/jobs" element={<JobsPage />} />
+                  <Route path="/interview-prep/:jobId" element={<PrivateRoute role="student"><InterviewPrep /></PrivateRoute>} />
 
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
-            </main>
-          </div>
-        </Router>
+                  <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
+              </main>
+            </div>
+          </Router>
+        </SocketProvider>
       </AuthProvider>
     </ThemeProvider>
   );

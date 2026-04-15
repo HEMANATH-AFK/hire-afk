@@ -3,6 +3,9 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MapPin, DollarSign, Filter, Briefcase, ChevronRight, Check, Users, Flag, X, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
 
 const JobsPage = () => {
     const { user } = useAuth();
@@ -48,7 +51,7 @@ const JobsPage = () => {
     const fetchAppliedJobs = async () => {
         try {
             const res = await axios.get('http://localhost:5000/api/applications/student');
-            setAppliedJobs(res.data.map(app => app.job._id));
+            setAppliedJobs(res.data.filter(app => app.job).map(app => app.job._id));
         } catch (err) {
             console.error(err);
         }
@@ -62,10 +65,10 @@ const JobsPage = () => {
     const handleManualApply = async (jobId) => {
         try {
             await axios.post('http://localhost:5000/api/applications/manual', { jobId });
-            alert('Application submitted successfully!');
+            toast.success('Application submitted successfully!');
             fetchAppliedJobs();
         } catch (err) {
-            alert(err.response?.data?.message || 'Application failed');
+            toast.error(err.response?.data?.message || 'Application failed');
         }
     };
 
@@ -80,12 +83,12 @@ const JobsPage = () => {
                 jobId: selectedJobForReport._id,
                 reason: reportReason
             });
-            alert('Report submitted successfully. Our team will review it.');
+            toast.success('Report submitted successfully. Our team will review it.');
             setShowReportModal(false);
             setReportReason('');
             setSelectedJobForReport(null);
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to submit report. Please try again.');
+            toast.error(err.response?.data?.message || 'Failed to submit report. Please try again.');
         } finally {
             setSubmittingReport(false);
         }
@@ -201,9 +204,7 @@ const JobsPage = () => {
 
                         {loading ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {[1, 2, 4, 5].map(i => (
-                                    <div key={i} className="glass h-[400px] rounded-[2.5rem] animate-pulse border border-white/5 opacity-40" />
-                                ))}
+                                <SkeletonLoader type="card" count={4} />
                             </div>
                         ) : jobs.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -305,17 +306,13 @@ const JobsPage = () => {
                                 </AnimatePresence>
                             </div>
                         ) : (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="glass py-32 rounded-[3.5rem] border border-dashed border-slate-200 dark:border-white/10 text-center"
-                            >
-                                <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <Briefcase className="text-slate-400 dark:text-slate-600" size={32} />
-                                </div>
-                                <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">No positions found</h3>
-                                <p className="text-slate-500 max-w-xs mx-auto font-medium">Try adjusting your keyword or location filters to broaden your search.</p>
-                            </motion.div>
+                            <div className="mt-8">
+                                <EmptyState 
+                                    icon={Briefcase} 
+                                    title="No positions found" 
+                                    message="Try adjusting your keyword or location filters to broaden your search." 
+                                />
+                            </div>
                         )}
                     </div>
                 </div>

@@ -125,30 +125,10 @@ exports.autoApply = async (student) => {
             const existingApp = await Application.findOne({ student: student._id, job: job._id });
             if (existingApp && process.env.NODE_ENV !== 'test_matching') continue;
 
-            let matchCount = 0;
-            const matchedKeywords = [];
+            const matchEngine = require('../utils/matchEngine');
+            const score = matchEngine.calculateSmartScore(student, job, resumeText);
 
-            const jobKeywords = (job.keywords || [])
-                .flatMap(k => k.split(','))
-                .map(k => k.toLowerCase().trim())
-                .filter(k => k);
-
-            jobKeywords.forEach(keyword => {
-                // Check in profile skills (exact match or word boundary)
-                const foundInProfile = profileSkills.includes(keyword);
-
-                // Check in resume (substring check)
-                const foundInResume = resumeText.includes(keyword);
-
-                if (foundInProfile || foundInResume) {
-                    matchCount++;
-                    matchedKeywords.push(keyword);
-                }
-            });
-
-            const score = jobKeywords.length > 0 ? (matchCount / jobKeywords.length) * 100 : 0;
-
-            console.log(`[DEBUG] Job: ${job.title}. Match Count: ${matchCount}/${jobKeywords.length}. Score: ${score}%`);
+            console.log(`[DEBUG] Job: ${job.title}. Score: ${score}%`);
 
             if (score >= 40) {
                 const analysis = await aiController.analyzeResume(student.resumeUrl, job);
@@ -183,7 +163,7 @@ exports.autoApply = async (student) => {
                     message: `New AI-matched application received for ${job.title} from ${student.name}.`
                 });
 
-                console.log(`[AUTO] Applied Student ${student.name} to Job ${job.title} with score ${score}% (Matches: ${matchedKeywords.join(', ')})`);
+                console.log(`[AUTO] Applied Student ${student.name} to Job ${job.title} with score ${score}%`);
             }
         }
     } catch (err) {
@@ -215,17 +195,8 @@ exports.applyAllStudentsToJob = async (job) => {
                 .map(s => s.toLowerCase().trim())
                 .filter(s => s);
 
-            let matchCount = 0;
-
-            jobKeywords.forEach(keyword => {
-                const foundInProfile = profileSkills.includes(keyword);
-                const foundInResume = resumeText.includes(keyword);
-                if (foundInProfile || foundInResume) {
-                    matchCount++;
-                }
-            });
-
-            const score = jobKeywords.length > 0 ? (matchCount / jobKeywords.length) * 100 : 0;
+            const matchEngine = require('../utils/matchEngine');
+            const score = matchEngine.calculateSmartScore(student, job, resumeText);
 
             console.log(`[DEBUG] Student: ${student.name}. Score: ${score}%`);
 

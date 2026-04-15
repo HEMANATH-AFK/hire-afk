@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import GlassSelect from '../components/GlassSelect';
-import { Plus, Briefcase, Users, Search, AlertCircle, Check, X, Rocket, Trash2, PieChart as PieIcon, BarChart as BarIcon, TrendingUp, Target } from 'lucide-react';
+import { Plus, Briefcase, Users, Search, AlertCircle, Check, X, Rocket, Trash2, PieChart as PieIcon, BarChart as BarIcon, TrendingUp, Target, Scale, FileText, Sparkles } from 'lucide-react';
+import toast from 'react-hot-toast';
+import SkeletonLoader from '../components/SkeletonLoader';
+import EmptyState from '../components/EmptyState';
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell,
     PieChart, Pie, Funnel, FunnelChart, LabelList
@@ -17,6 +20,7 @@ const RecruiterDashboard = () => {
         company: '',
         description: '',
         keywords: '',
+        prioritySkills: '',
         location: '',
         salary: '',
         vacancies: 1,
@@ -41,6 +45,9 @@ const RecruiterDashboard = () => {
     const [filterMode, setFilterMode] = useState('smart');
     const [skillInput, setSkillInput] = useState('');
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [selectedForCompare, setSelectedForCompare] = useState([]);
+    const [showCompareModal, setShowCompareModal] = useState(false);
+    const [notesLoading, setNotesLoading] = useState({});
 
     useEffect(() => {
         fetchJobs();
@@ -73,7 +80,7 @@ const RecruiterDashboard = () => {
             const res = await axios.get(`http://localhost:5000/api/applications/filter?${queryParams.toString()}`);
             setApplications(res.data);
         } catch (err) {
-            alert(err.response?.data?.message || 'Filter failed');
+            toast.error(err.response?.data?.message || 'Filter failed');
         }
     };
 
@@ -135,7 +142,7 @@ const RecruiterDashboard = () => {
             setJobForm(prev => ({ ...prev, company: res.data.company }));
             fetchJobs(); // Update existing jobs view if logos changed in some way
         } catch (err) {
-            alert('Failed to update company branding');
+            toast.error('Failed to update company branding');
         }
     };
 
@@ -162,6 +169,30 @@ const RecruiterDashboard = () => {
         }
     };
 
+    const handleSaveNotes = async (appId, notes) => {
+        setNotesLoading(prev => ({ ...prev, [appId]: true }));
+        try {
+            await axios.put(`http://localhost:5000/api/applications/${appId}/notes`, { notes });
+            toast.success('Notes saved');
+        } catch (err) {
+            toast.error('Failed to save notes');
+        } finally {
+            setNotesLoading(prev => ({ ...prev, [appId]: false }));
+        }
+    };
+
+    const toggleCompare = (app) => {
+        if (selectedForCompare.find(c => c._id === app._id)) {
+            setSelectedForCompare(selectedForCompare.filter(c => c._id !== app._id));
+        } else {
+            if (selectedForCompare.length >= 2) {
+                toast.error('You can only compare 2 candidates at a time');
+                return;
+            }
+            setSelectedForCompare([...selectedForCompare, app]);
+        }
+    };
+
     const handleUpdateStatus = async (appId, status) => {
         try {
             await axios.put(`http://localhost:5000/api/applications/${appId}/status`, { status });
@@ -171,7 +202,7 @@ const RecruiterDashboard = () => {
                 fetchApplicants(selectedJob._id);
             }
         } catch (err) {
-            alert('Status update failed');
+            toast.error('Status update failed');
         }
     };
 
@@ -185,7 +216,7 @@ const RecruiterDashboard = () => {
                 fetchApplicants(selectedJob._id);
             }
         } catch (err) {
-            alert(err.response?.data?.message || 'Deletion failed');
+            toast.error(err.response?.data?.message || 'Deletion failed');
         }
     };
 
@@ -227,7 +258,7 @@ const RecruiterDashboard = () => {
             setJobForm({ title: '', company: '', description: '', keywords: '', location: '', salary: '', vacancies: 1, jobType: 'Full-time', deadline: '', companyLogo: null });
             fetchJobs();
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to save job');
+            toast.error(err.response?.data?.message || 'Failed to save job');
         }
     };
 
@@ -237,12 +268,13 @@ const RecruiterDashboard = () => {
             title: job.title || '',
             company: job.company || '',
             description: job.description || '',
-            keywords: Array.isArray(job.keywords) ? job.keywords.join(', ') : '',
+            keywords: job.keywords?.join(', ') || '',
+            prioritySkills: job.prioritySkills?.join(', ') || '',
             location: job.location || '',
             salary: job.salary || '',
             vacancies: job.vacancies || 1,
             jobType: job.jobType || 'Full-time',
-            deadline: job.deadline ? new Date(job.deadline).toISOString().split('T')[0] : '',
+            deadline: job.deadline ? job.deadline.substring(0, 10) : '',
             companyLogo: null
         });
         setShowAddJob(true);
@@ -254,11 +286,11 @@ const RecruiterDashboard = () => {
             await axios.delete(`http://localhost:5000/api/jobs/${jobId}`);
             fetchJobs();
         } catch (err) {
-            alert('Failed to delete job');
+            toast.error('Failed to delete job');
         }
     };
 
-    if (loading) return <div className="p-10 text-center">Loading Dashboard...</div>;
+    if (loading) return <div className="max-w-7xl mx-auto px-6 py-12 space-y-8"><SkeletonLoader type="card" count={2} /></div>;
 
     const renderContent = () => {
         switch (activeTab) {
@@ -298,6 +330,7 @@ const RecruiterDashboard = () => {
                                     <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-2 relative z-10">Total Applications</p>
                                     <p className="text-5xl font-black text-white relative z-10">{analyticsStats?.totalApplications || 0}</p>
                                 </div>
+
                                 <div className="glass p-8 rounded-[2rem] border-white/10 relative overflow-hidden group bg-gradient-to-br from-indigo-900/10 to-transparent">
                                     <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-2 relative z-10">Average Match Score</p>
                                     <div className="flex items-center gap-4 relative z-10">
@@ -307,6 +340,38 @@ const RecruiterDashboard = () => {
                                         <div>
                                             <p className="text-4xl font-black text-white leading-tight">{analyticsStats?.avgMatchScore || 0}%</p>
                                             <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest">Platform Average</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="glass p-8 rounded-[2rem] border-white/5 relative overflow-hidden bg-gradient-to-br from-cyan-900/10 to-transparent">
+                                    <p className="text-[10px] uppercase font-black tracking-widest text-slate-500 mb-6 relative z-10">Conversion Funnel</p>
+                                    <div className="space-y-6 relative z-10">
+                                        <div>
+                                            <div className="flex justify-between text-xs font-bold mb-2">
+                                                <span className="text-slate-400">Lead to Interview</span>
+                                                <span className="text-cyan-400">{analyticsStats?.totalApplications > 0 ? Math.round((analyticsStats.totalInterviews / analyticsStats.totalApplications) * 100) : 0}%</span>
+                                            </div>
+                                            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                                <motion.div 
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${analyticsStats?.totalApplications > 0 ? (analyticsStats.totalInterviews / analyticsStats.totalApplications) * 100 : 0}%` }}
+                                                    className="h-full bg-cyan-500 shadow-[0_0_10px_rgba(34,211,238,0.5)]"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="flex justify-between text-xs font-bold mb-2">
+                                                <span className="text-slate-400">Interview to Hire</span>
+                                                <span className="text-emerald-400">{analyticsStats?.totalInterviews > 0 ? Math.round((analyticsStats.totalHires / analyticsStats.totalInterviews) * 100) : 0}%</span>
+                                            </div>
+                                            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                                <motion.div 
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${analyticsStats?.totalInterviews > 0 ? (analyticsStats.totalHires / analyticsStats.totalInterviews) * 100 : 0}%` }}
+                                                    className="h-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -394,10 +459,13 @@ const RecruiterDashboard = () => {
                                 </div>
                             ))
                         ) : (
-                            <div className="glass p-20 rounded-[3rem] text-center border-dashed border-2 border-slate-700/50">
-                                <Plus className="mx-auto text-slate-600 mb-4" size={48} />
-                                <p className="text-slate-400 font-bold">You haven't posted any jobs yet.</p>
-                            </div>
+                            <EmptyState 
+                                icon={Briefcase} 
+                                title="No Jobs Posted" 
+                                message="You haven't posted any jobs yet. Create your first listing to start hiring!" 
+                                actionLabel="Post New Job" 
+                                onAction={() => setShowAddJob(true)} 
+                            />
                         )}
                     </div>
                 );
@@ -539,31 +607,82 @@ const RecruiterDashboard = () => {
                         <div className="space-y-8">
                             {applications.length > 0 ? (
                                 applications.map(app => (
-                                    <div key={app._id} className={`bg-white/5 p-8 rounded-[3rem] border flex flex-col md:flex-row justify-between gap-8 transition-all relative group/card ${app.filterMatchScore >= 80 ? 'border-indigo-500/50 shadow-[0_0_30px_rgba(99,102,241,0.15)] hover:shadow-[0_0_40px_rgba(99,102,241,0.25)]' : 'border-white/5 hover:border-indigo-500/20'}`}>
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-4 mb-4">
+                                    <div key={app._id} className={`bg-white/5 p-8 rounded-[3rem] border flex flex-col md:flex-row justify-between gap-8 transition-all relative group/card ${(app.filterMatchScore >= 80 || app.matchScore >= 80) ? 'border-indigo-500/50 shadow-[0_0_30px_rgba(99,102,241,0.15)] hover:shadow-[0_0_40px_rgba(99,102,241,0.25)]' : 'border-white/5 hover:border-indigo-500/20'}`}>
+                                        <div className="absolute top-8 right-8 z-10 hidden md:block">
+                                            <label className="flex items-center gap-2 cursor-pointer bg-black/40 px-4 py-2 rounded-xl border border-white/5 hover:border-indigo-500/30 transition-all">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={selectedForCompare.some(c => c._id === app._id)}
+                                                    onChange={() => toggleCompare(app)}
+                                                    className="form-checkbox bg-black/40 border-indigo-500/30 text-indigo-600 rounded focus:ring-indigo-500 h-4 w-4"
+                                                />
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 select-none">Compare</span>
+                                            </label>
+                                        </div>
+                                        <div className="flex-1 md:pr-32">
+                                            <div className="flex flex-wrap items-center gap-4 mb-4">
                                                 <h4 className="text-3xl font-black tracking-tight">{app.student.name}</h4>
                                                 <div className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-5 py-1.5 rounded-full text-sm font-black tracking-tighter shadow-lg shadow-indigo-500/5">
                                                     {app.filterMatchScore !== undefined ? app.filterMatchScore : app.matchScore}% Match
                                                 </div>
+                                                {(app.filterMatchScore !== undefined ? app.filterMatchScore : app.matchScore) >= 95 && (
+                                                    <div className="bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-300 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(217,70,239,0.3)] flex items-center gap-1 animate-pulse">
+                                                        🦄 Unicorn Match
+                                                    </div>
+                                                )}
+                                                {(app.filterMatchScore !== undefined ? app.filterMatchScore : app.matchScore) >= 85 && (app.filterMatchScore !== undefined ? app.filterMatchScore : app.matchScore) < 95 && (
+                                                    <div className="bg-amber-500/20 border border-amber-500/40 text-amber-300 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(245,158,11,0.2)] flex items-center gap-1">
+                                                        ✨ Top Talent
+                                                    </div>
+                                                )}
+                                                {(app.filterMatchScore !== undefined ? app.filterMatchScore : app.matchScore) >= 75 && (app.filterMatchScore !== undefined ? app.filterMatchScore : app.matchScore) < 85 && (
+                                                    <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(16,185,129,0.1)] flex items-center gap-1">
+                                                        ✅ Gold Standard
+                                                    </div>
+                                                )}
+                                                {(app.filterMatchScore !== undefined ? app.filterMatchScore : app.matchScore) >= 60 && (app.filterMatchScore !== undefined ? app.filterMatchScore : app.matchScore) < 75 && (
+                                                    <div className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                                                        👍 Strong Match
+                                                    </div>
+                                                )}
                                                 {viewMode === 'all' && (
                                                     <div className="bg-white/5 border border-white/10 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-slate-400">
                                                         For: {app.job?.title || 'Unknown Job'}
                                                     </div>
                                                 )}
                                             </div>
+                                            <div className="md:hidden mb-4">
+                                                <label className="flex items-center gap-2 cursor-pointer bg-black/40 px-4 py-2 rounded-xl border border-white/5 hover:border-indigo-500/30 transition-all w-max">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedForCompare.some(c => c._id === app._id)}
+                                                        onChange={() => toggleCompare(app)}
+                                                        className="form-checkbox bg-black/40 border-indigo-500/30 text-indigo-600 rounded focus:ring-indigo-500 h-4 w-4"
+                                                    />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 select-none">Compare</span>
+                                                </label>
+                                            </div>
                                             <p className="text-slate-400 font-bold leading-relaxed mb-6 line-clamp-2">{app.student.description}</p>
                                             <div className="flex flex-wrap gap-3 mb-6">
                                                 {app.student.skills && Array.isArray(app.student.skills) && app.student.skills.map(s => {
                                                     const isMatched = app.filterMatchedSkills && app.filterMatchedSkills.some(ms => ms.toLowerCase() === s.toLowerCase() || s.toLowerCase().includes(ms.toLowerCase()));
+                                                    const isPriority = app.job?.prioritySkills && app.job.prioritySkills.some(ps => ps.toLowerCase().trim() === s.toLowerCase().trim() || s.toLowerCase().trim().includes(ps.toLowerCase().trim()));
+                                                    
                                                     return (
-                                                        <span key={s} className={`px-4 py-1.5 rounded-xl text-xs font-black border ${isMatched ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300 shadow-[0_0_10px_rgba(99,102,241,0.2)]' : 'bg-slate-800/80 border-white/5 text-slate-300'}`}>
+                                                        <span key={s} className={`px-4 py-1.5 rounded-xl text-xs font-black border flex items-center gap-1.5 transition-all ${
+                                                            isPriority && isMatched 
+                                                                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)]' 
+                                                                : isMatched 
+                                                                    ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300 shadow-[0_0_10px_rgba(99,102,241,0.2)]' 
+                                                                    : 'bg-slate-800/80 border-white/5 text-slate-300'
+                                                        }`}>
+                                                            {isPriority && isMatched && <Sparkles size={12} className="text-amber-400" />}
                                                             {s}
                                                         </span>
                                                     );
                                                 })}
                                             </div>
-                                            <div className="flex items-center gap-6">
+                                            <div className="flex items-center gap-6 mb-6">
                                                 <a href={`http://localhost:5000/${app.student.resumeUrl}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-indigo-400 font-black hover:text-indigo-300 transition-colors group">
                                                     <Search size={18} className="group-hover:scale-110 transition-transform" />
                                                     <span className="border-b-2 border-indigo-500/20 group-hover:border-indigo-500 transition-all">Review Resume</span>
@@ -576,6 +695,20 @@ const RecruiterDashboard = () => {
                                                         <Trash2 size={16} /> Delete Application
                                                     </button>
                                                 )}
+                                            </div>
+                                            <div className="border-t border-white/5 pt-6 mt-2">
+                                                <label className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">
+                                                    <FileText size={14} /> Internal Recruiter Notes (Auto-saved)
+                                                </label>
+                                                <div className="relative">
+                                                    <textarea
+                                                        defaultValue={app.recruiterNotes || ''}
+                                                        onBlur={(e) => handleSaveNotes(app._id, e.target.value)}
+                                                        placeholder="Add private evaluation notes about this candidate..."
+                                                        className="w-full bg-black/20 border border-white/5 rounded-2xl p-4 text-sm font-bold text-slate-300 outline-none focus:border-indigo-500/30 transition-all resize-none h-20 placeholder:text-slate-600 focus:bg-white/5"
+                                                    ></textarea>
+                                                    {notesLoading[app._id] && <div className="absolute top-4 right-4 text-[10px] uppercase font-black tracking-widest text-indigo-400 animate-pulse">Saving...</div>}
+                                                </div>
                                             </div>
                                         </div>
                                         <div className="flex flex-col justify-center gap-4 min-w-[220px]">
@@ -603,11 +736,11 @@ const RecruiterDashboard = () => {
                                     </div>
                                 ))
                             ) : (
-                                <div className="text-center py-24 bg-white/5 rounded-[3rem] border border-dashed border-white/10">
-                                    <Users className="mx-auto text-slate-700 mb-6" size={64} />
-                                    <p className="text-xl text-slate-500 font-black tracking-tight">No candidates found.</p>
-                                    <p className="text-sm text-slate-600 mt-2 font-bold">Try viewing all candidates or check another job.</p>
-                                </div>
+                                <EmptyState 
+                                    icon={Users} 
+                                    title="No Candidates Found" 
+                                    message="No candidates to review at the moment. Try checking another job or loosening your smart filter." 
+                                />
                             )}
                         </div>
                     </div>
@@ -789,6 +922,7 @@ const RecruiterDashboard = () => {
                             company: profile?.company || '',
                             description: '',
                             keywords: '',
+                            prioritySkills: '',
                             location: '',
                             salary: '',
                             vacancies: 1,
@@ -833,6 +967,137 @@ const RecruiterDashboard = () => {
             <div className="space-y-12">
                 {renderContent()}
             </div>
+
+            {/* Sticky Compare Action Bar */}
+            <AnimatePresence>
+                {selectedForCompare.length > 0 && activeTab === 'applicants' && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
+                        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40"
+                    >
+                        <div className="glass px-8 py-4 rounded-full border border-indigo-500/30 shadow-[0_10px_40px_rgba(99,102,241,0.2)] flex items-center gap-6 bg-[#0f172a]/90 backdrop-blur-xl">
+                            <div className="flex -space-x-3">
+                                {selectedForCompare.map((c, i) => (
+                                    <div key={c._id} className="w-10 h-10 rounded-full bg-indigo-600 border-2 border-[#0f172a] flex items-center justify-center font-black text-xs text-white uppercase overflow-hidden shadow-lg">
+                                        {c.student.name.substring(0, 2)}
+                                    </div>
+                                ))}
+                            </div>
+                            <div>
+                                <p className="text-sm font-black text-white">{selectedForCompare.length}/2</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Selected</p>
+                            </div>
+                            <div className="flex items-center gap-3 border-l border-white/10 pl-6 ml-2">
+                                <button 
+                                    onClick={() => setSelectedForCompare([])}
+                                    className="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
+                                >
+                                    Clear
+                                </button>
+                                <button 
+                                    onClick={() => setShowCompareModal(true)}
+                                    disabled={selectedForCompare.length !== 2}
+                                    className={`px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2 ${selectedForCompare.length === 2 ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30' : 'bg-white/5 text-slate-500 cursor-not-allowed border border-white/5'}`}
+                                >
+                                    <Scale size={16} /> Compare
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Compare Modal */}
+            <AnimatePresence>
+                {showCompareModal && selectedForCompare.length === 2 && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+                            className="w-full max-w-6xl max-h-[90vh] flex flex-col glass border border-white/10 rounded-[3rem] shadow-2xl overflow-hidden"
+                        >
+                            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-black/20">
+                                <div>
+                                    <h2 className="text-3xl font-black text-white flex items-center gap-3"><Scale className="text-indigo-400" /> Candidate Comparison</h2>
+                                    <p className="text-slate-400 font-bold text-sm mt-1">Side-by-side technical evaluation</p>
+                                </div>
+                                <button onClick={() => setShowCompareModal(false)} className="w-12 h-12 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-all">
+                                    <X size={24} />
+                                </button>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
+                                    {selectedForCompare.map((app, idx) => (
+                                        <div key={app._id} className="bg-black/20 border border-white/5 p-8 rounded-[2.5rem] flex flex-col">
+                                            <div className="flex flex-col items-center text-center mb-8 pb-8 border-b border-white/5">
+                                                <div className="w-24 h-24 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center text-3xl font-black uppercase tracking-widest mb-4">
+                                                    {app.student.name.substring(0, 2)}
+                                                </div>
+                                                <h3 className="text-2xl font-black text-white">{app.student.name}</h3>
+                                                <p className="text-indigo-400 font-black mt-1">{app.filterMatchScore !== undefined ? app.filterMatchScore : app.matchScore}% Machine Match</p>
+                                            </div>
+                                            
+                                            <div className="flex-1 space-y-8">
+                                                <div>
+                                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2"><Target size={14} /> Profile Summary</h4>
+                                                    <p className="text-slate-300 font-bold text-sm leading-relaxed">{app.student.description || 'No description provided.'}</p>
+                                                </div>
+
+                                                <div>
+                                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2"><Briefcase size={14} /> Claimed Skills</h4>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {app.student.skills && app.student.skills.map(s => (
+                                                            <span key={s} className="px-3 py-1 bg-white/5 border border-white/10 rounded-xl text-xs font-black text-slate-300">{s}</span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {app.aiFeedback?.strengths && app.aiFeedback.strengths.length > 0 && (
+                                                    <div>
+                                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-green-500 mb-3 flex items-center gap-2"><TrendingUp size={14} /> AI Identified Strengths</h4>
+                                                        <ul className="space-y-2">
+                                                            {app.aiFeedback.strengths.map((str, i) => (
+                                                                <li key={i} className="text-sm font-bold text-slate-300 flex items-start gap-2">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 shrink-0" /> {str}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {app.aiFeedback?.weaknesses && app.aiFeedback.weaknesses.length > 0 && (
+                                                    <div>
+                                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-3 flex items-center gap-2"><TrendingUp size={14} className="rotate-180" /> AI Identified Weaknesses</h4>
+                                                        <ul className="space-y-2">
+                                                            {app.aiFeedback.weaknesses.map((wk, i) => (
+                                                                <li key={i} className="text-sm font-bold text-slate-300 flex items-start gap-2">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" /> {wk}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="mt-8 pt-6 border-t border-white/5 flex gap-4">
+                                                <a href={`http://localhost:5000/${app.student.resumeUrl}`} target="_blank" rel="noreferrer" className="flex-1 bg-white/5 hover:bg-white/10 py-4 rounded-2xl text-center font-black text-sm transition-all border border-white/5">
+                                                    View Resume
+                                                </a>
+                                                <button onClick={() => {
+                                                    handleUpdateStatus(app._id, 'accepted');
+                                                    setShowCompareModal(false);
+                                                }} className="flex-1 bg-green-600 hover:bg-green-500 text-white py-4 rounded-2xl text-center font-black text-sm transition-all shadow-lg shadow-green-600/20">
+                                                    Hire Candidate
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* Add/Edit Job Modal */}
             {showAddJob && (
@@ -916,6 +1181,14 @@ const RecruiterDashboard = () => {
                                     type="text" required value={jobForm.keywords}
                                     onChange={e => setJobForm({ ...jobForm, keywords: e.target.value })}
                                     className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-4 outline-none focus:border-indigo-500/50 transition-all font-bold text-white placeholder:text-slate-600" placeholder="React, Node.js, Typescript"
+                                />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-xs font-black text-amber-500 uppercase tracking-widest mb-2 ml-1 flex items-center gap-2"><Sparkles size={14} /> Priority Skills (2x Weight - Must be in keywords too)</label>
+                                <input
+                                    type="text" value={jobForm.prioritySkills}
+                                    onChange={e => setJobForm({ ...jobForm, prioritySkills: e.target.value })}
+                                    className="w-full bg-amber-500/5 border border-amber-500/20 rounded-2xl px-6 py-4 outline-none focus:border-amber-500/50 transition-all font-bold text-white placeholder:text-slate-700" placeholder="e.g. React, Docker"
                                 />
                             </div>
                             <div className="md:col-span-2">

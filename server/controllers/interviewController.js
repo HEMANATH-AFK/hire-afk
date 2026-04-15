@@ -1,5 +1,7 @@
 const Interview = require('../models/Interview');
 const Job = require('../models/Job');
+const { GoogleGenAI } = require('@google/genai');
+const { awardXP } = require('./gamificationController');
 
 exports.generateInterview = async (req, res) => {
     const { jobId } = req.body;
@@ -10,48 +12,68 @@ exports.generateInterview = async (req, res) => {
         const keywords = (job.keywords || []).flatMap(k => k.split(',')).map(k => k.trim()).filter(k => k !== "");
         const primarySkill = keywords[0] || 'Software Development';
         const secondarySkill = keywords[1] || 'Problem Solving';
-        const jobTitle = job.title.toLowerCase();
+        const jobTitle = job.title;
 
-        // Intelligence Engine: Specialized question pools
-        const questionPool = {
-            technical: [
-                `Can you describe the internal architecture of ${primarySkill}? How does it handle memory management or state under heavy load?`,
-                `In ${primarySkill}, what are the most common performance bottlenecks you've encountered and how did you profile/optimize them?`,
-                `Explain a complex technical challenge you solved using ${primarySkill}. Specifically, why was this the right tool for that problem vs alternatives?`,
-                `If you had to scale an application built with ${primarySkill} and ${keywords[2] || 'distributed systems'}, what would be your strategy for data consistency?`
-            ],
-            academic: [
-                `How do the core principles of Data Structures and Algorithms apply to the way you write production-level ${primarySkill} code?`,
-                `At a lower level, how does the Operating System manage the processes created by your ${primarySkill} applications?`,
-                `Explain the time complexity of the most efficient search/sort algorithm you've used in a project involving ${secondarySkill}.`,
-                `In your studies, what foundational concept (like Networking protocols or Database Normalization) has been most useful when working with ${primarySkill}?`
-            ],
-            behavioral: [
-                `Given your interest in ${job.company}, how would you navigate a technical disagreement with a senior architect regarding ${primarySkill} implementation?`,
-                `Describe a time you had to learn a 'core study' concept outside your usual curriculum to solve a task. How did you validate your learning?`
-            ]
-        };
+        let questions = [];
 
-        // Randomly pick unique questions from the pool to avoid repetition
-        const getRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        // Attempt Real AI Layer if configured
+        if (process.env.GEMINI_API_KEY) {
+            try {
+                const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+                const prompt = `You are an expert technical interviewer hiring for a ${jobTitle} at ${job.company}.
+Required skills: ${keywords.join(', ')}.
 
-        const questions = [
-            // 1. Technical Depth
-            { text: getRandom(questionPool.technical), type: 'Technical Depth' },
-            // 2. Academic/Foundational Connection
-            { text: getRandom(questionPool.academic), type: 'CS Fundamentals' },
-            // 3. Application Specialized
-            { text: `For a ${job.title} role at ${job.company}, how would you implement a robust testing strategy for a ${primarySkill} module?`, type: 'Engineering' },
-            // 4. Secondary Skill Deep Dive
-            { text: `Explain how you utilize ${secondarySkill} in conjunction with ${primarySkill} to ensure system scalability.`, type: 'Technical' },
-            // 5. Behavioral/Cultural
-            { text: getRandom(questionPool.behavioral), type: 'HR/Behavioral' }
-        ];
+Generate exactly 5 distinct, highly-specific interview questions that test these exact skills and general engineering/behavioral competence.
+Respond heavily structured in JSON format ONLY:
+[
+  { "text": "Question 1 text...", "type": "Technical Depth" },
+  { "text": "Question 2 text...", "type": "CS Fundamentals" },
+  { "text": "Question 3 text...", "type": "Engineering" },
+  { "text": "Question 4 text...", "type": "Technical" },
+  { "text": "Question 5 text...", "type": "HR/Behavioral" }
+]`;
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
+                });
+                
+                let responseText = response.text || "";
+                responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                questions = JSON.parse(responseText);
+            } catch (err) {
+                console.error("Gemini Interview Gen Error (falling back to mock):", err.message);
+            }
+        }
+
+        // Fallback or if API failed
+        if (!questions || questions.length === 0) {
+            const questionPool = {
+                technical: [
+                    `Can you describe the internal architecture of ${primarySkill}? How does it handle memory management or state under heavy load?`,
+                    `In ${primarySkill}, what are the most common performance bottlenecks you've encountered and how did you profile/optimize them?`
+                ],
+                academic: [
+                    `How do the core principles of Data Structures and Algorithms apply to the way you write production-level ${primarySkill} code?`,
+                    `At a lower level, how does the Operating System manage the processes created by your ${primarySkill} applications?`
+                ],
+                behavioral: [
+                    `Given your interest in ${job.company}, how would you navigate a technical disagreement with a senior architect regarding ${primarySkill}?`
+                ]
+            };
+            const getRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+            questions = [
+                { text: getRandom(questionPool.technical), type: 'Technical Depth' },
+                { text: getRandom(questionPool.academic), type: 'CS Fundamentals' },
+                { text: `For a ${jobTitle} role at ${job.company}, how would you implement a robust testing strategy for a ${primarySkill} module?`, type: 'Engineering' },
+                { text: `Explain how you utilize ${secondarySkill} in conjunction with ${primarySkill} to ensure system scalability.`, type: 'Technical' },
+                { text: getRandom(questionPool.behavioral), type: 'HR/Behavioral' }
+            ];
+        }
 
         const interview = await Interview.create({
             student: req.user.id,
             job: jobId,
-            questions
+            questions: questions.slice(0, 5) // ensure exactly 5
         });
 
         res.status(201).json(interview);
@@ -67,31 +89,59 @@ exports.submitAnswer = async (req, res) => {
         if (!interview) return res.status(404).json({ message: 'Interview not found' });
 
         const question = interview.questions[questionIndex];
-        const lowAnswer = answer.toLowerCase();
-
-        // Nuanced Scoring & Feedback Engine
+        
         let feedback = "";
         let score = 0;
 
-        // 1. Length & Engagement Check
-        if (answer.length < 30) {
-            feedback = "Your response is too brief. In a real interview, you should provide specific examples and use the STAR method (Situation, Task, Action, Result).";
-            score = 3;
-        } else if (answer.length > 250) {
-            feedback = "Excellent depth! You've provided a comprehensive explanation which shows your commitment to the topic.";
-            score = 9;
-        } else {
-            feedback = "Good response. Try to relate this more specifically to foundational CS concepts or past project outcomes.";
-            score = 7;
+        // Attempt Real AI Layer
+        if (process.env.GEMINI_API_KEY) {
+            try {
+                const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+                const prompt = `You are evaluating a candidate's answer to this interview question.
+Question: "${question.text}"
+Candidate's Answer: "${answer}"
+
+Evaluate their answer on a scale of 1 to 10 based on depth, correctness, and adherence to the STAR method if applicable.
+Output exactly this JSON structure (no markdown blocks):
+{
+  "feedback": "Your constructive 2-3 sentence feedback talking directly to the user...",
+  "score": 8
+}`;
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
+                });
+                let responseText = response.text || "";
+                responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                
+                const aiData = JSON.parse(responseText);
+                feedback = aiData.feedback || "Good effort.";
+                score = aiData.score || 5;
+            } catch (err) {
+                console.error("Gemini Grading Error (falling back to mock):", err.message);
+            }
         }
 
-        // 2. Technical Keyword Depth Check (Simulated Intelligence)
-        const depthKeywords = ['scaling', 'architecture', 'efficiency', 'optimization', 'complexity', 'trade-off', 'security', 'latency', 'asynchronous', 'normalization'];
-        const wordCount = depthKeywords.filter(w => lowAnswer.includes(w)).length;
+        // Mock Fallback processing
+        if (!feedback) {
+            const lowAnswer = answer.toLowerCase();
+            if (answer.length < 30) {
+                feedback = "Your response is too brief. In a real interview, you should provide specific examples and use the STAR method.";
+                score = 3;
+            } else if (answer.length > 250) {
+                feedback = "Excellent depth! You've provided a comprehensive explanation which shows your commitment to the topic.";
+                score = 9;
+            } else {
+                feedback = "Good response. Try to relate this more specifically to foundational CS concepts or past project outcomes.";
+                score = 7;
+            }
 
-        if (wordCount >= 2) {
-            feedback += " I noticed you mentioned key technical concepts like " + depthKeywords.filter(w => lowAnswer.includes(w)).slice(0, 2).join(' and ') + ", which adds significant credibility to your profile.";
-            score = Math.min(10, score + 1);
+            const depthKeywords = ['scaling', 'architecture', 'efficiency', 'optimization', 'complexity', 'trade-off', 'security', 'latency', 'asynchronous', 'normalization'];
+            const wordCount = depthKeywords.filter(w => lowAnswer.includes(w)).length;
+            if (wordCount >= 2) {
+                feedback += " Good use of technical terminology.";
+                score = Math.min(10, score + 1);
+            }
         }
 
         interview.responses.push({
@@ -105,6 +155,7 @@ exports.submitAnswer = async (req, res) => {
             interview.status = 'completed';
             const totalScore = interview.responses.reduce((sum, r) => sum + r.score, 0);
             interview.overallScore = Math.round((totalScore / (interview.questions.length * 10)) * 100);
+            awardXP(req.user.id, 75, 'interview_practice').catch(console.error);
         }
 
         await interview.save();

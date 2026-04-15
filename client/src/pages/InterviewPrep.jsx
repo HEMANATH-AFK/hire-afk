@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, CheckCircle, ChevronLeft, Award, Play, MessageSquare, ShieldCheck, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const InterviewPrep = () => {
     const { jobId } = useParams();
@@ -21,7 +22,7 @@ const InterviewPrep = () => {
             setInterview(res.data);
             setCurrentStep(0);
         } catch (err) {
-            alert('Failed to start interview');
+            toast.error('Failed to start interview');
         } finally {
             setIsGenerating(false);
         }
@@ -39,7 +40,7 @@ const InterviewPrep = () => {
             setFeedback(res.data.responses[res.data.responses.length - 1]);
             setInterview(res.data);
         } catch (err) {
-            alert('Submission failed');
+            toast.error('Submission failed');
         } finally {
             setLoading(false);
         }

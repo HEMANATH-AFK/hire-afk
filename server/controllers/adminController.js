@@ -69,12 +69,22 @@ exports.getPlatformStats = async (req, res) => {
         const totalApplications = await Application.countDocuments();
         const totalReports = await Report.countDocuments({ status: 'pending' });
 
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const jobsToday = await Job.countDocuments({ createdAt: { $gte: today } });
+        const appsToday = await Application.countDocuments({ createdAt: { $gte: today } });
+        const usersToday = await User.countDocuments({ createdAt: { $gte: today } });
+
         res.json({
             totalStudents,
             totalRecruiters,
             totalJobs,
             totalApplications,
-            totalReports
+            totalReports,
+            jobsToday,
+            appsToday,
+            usersToday
         });
     } catch (err) {
         res.status(500).json({ message: err.message });

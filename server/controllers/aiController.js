@@ -1,6 +1,7 @@
 const pdf = require('pdf-parse');
 const fs = require('fs');
 const path = require('path');
+const { GoogleGenAI } = require('@google/genai');
 
 /**
  * Provides AI-powered feedback for a resume based on a job description.
@@ -47,7 +48,45 @@ exports.analyzeResume = async (resumePath, job) => {
         const matched = jobKeywords.filter(skill => text.includes(skill));
         const missing = jobKeywords.filter(skill => !text.includes(skill));
 
-        // DYNAMIC CONTENT GENERATOR (Simulating Sophisticated AI)
+        // Attempt Real AI Layer if configured
+        if (process.env.GEMINI_API_KEY) {
+            try {
+                const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+                const prompt = `Analyze this resume against the job requirements.
+Job Requirements: ${jobKeywords.join(', ')}.
+Job Title: ${job.title} at ${job.company}.
+Resume text: ${text.substring(0, 3000)}
+
+Provide a strict JSON object (without markdown code blocks) exactly following this structure:
+{
+  "strengths": ["strength 1", "strength 2"],
+  "weaknesses": ["weakness 1", "weakness 2"],
+  "recommendations": ["recommendation 1", "recommendation 2"],
+  "summary": "overall 2-3 sentence summary"
+}`;
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: prompt,
+                });
+                
+                let responseText = response.text || "";
+                responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                const aiData = JSON.parse(responseText);
+
+                return {
+                    strengths: aiData.strengths || [],
+                    weaknesses: aiData.weaknesses || [],
+                    recommendations: aiData.recommendations || [],
+                    summary: aiData.summary || "AI Analysis Complete.",
+                    matchedSkills: matched,
+                    missingSkills: missing
+                };
+            } catch (err) {
+                console.error("Gemini API Error in aiController (falling back to mock):", err.message);
+            }
+        }
+
+        // DYNAMIC CONTENT GENERATOR (Simulated AI Fallback)
         const getSummary = () => {
             if (matched.length === 0) return `Based on our analysis, your current resume doesn't align closely with the core technical requirements for ${job.title}. We recommend tailoring your experience to explicitly highlight ${missing.slice(0, 2).join(' or ')} to better match ${job.company}'s needs.`;
             if (matched.length === jobKeywords.length) return `Exceptional match! Your background in ${matched.join(', ')} is a perfect fit for the ${job.title} role at ${job.company}. You are a top-tier candidate for this position.`;

@@ -34,6 +34,9 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/applications', require('./routes/applications'));
 app.use('/api/interviews', require('./routes/interviews'));
 app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/gamification', require('./routes/gamificationRoutes'));
+app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/chat', require('./routes/chat'));
 
 // Database Connection
 mongoose.connect(process.env.MONGODB_URI)

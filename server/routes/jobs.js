@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createJob, getJobs, getRecruiterJobs, updateJob, deleteJob } = require('../controllers/jobController');
+const { createJob, getJobs, getRecruiterJobs, updateJob, deleteJob, getAIJobSuggestions } = require('../controllers/jobController');
 const Job = require('../models/Job');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -14,6 +14,7 @@ const upload = multer({ storage });
 
 router.get('/', getJobs);
 router.get('/myjobs', protect, authorize('recruiter'), getRecruiterJobs);
+router.get('/ai-match', protect, authorize('student'), getAIJobSuggestions);
 router.post('/', protect, authorize('recruiter'), upload.single('companyLogo'), createJob);
 router.put('/:id', protect, authorize('recruiter'), upload.single('companyLogo'), updateJob);
 router.delete('/:id', protect, authorize('recruiter', 'admin'), deleteJob);
