@@ -1,0 +1,26 @@
+{
+  "name": "hire-afk",
+  "version": "1.0.0",
+  "description": "**Hire AFK** is a high-end, premium career platform designed to bridge the gap between students and recruiters through automation and AI-driven intelligence. It doesn't just list jobs; it actively helps students apply, prepare, and succeed—completely \"Away From Keyboard.\"",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HEMANATH-AFK/hire-afk.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/HEMANATH-AFK/hire-afk/issues"
+  },
+  "homepage": "https://github.com/HEMANATH-AFK/hire-afk#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
